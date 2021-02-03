@@ -15,17 +15,11 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"strconv"
 	"time"
 
-	"github.com/aws/shim-loggers-for-containerd/debug"
 	"github.com/aws/shim-loggers-for-containerd/logger"
 	"github.com/aws/shim-loggers-for-containerd/logger/awslogs"
-	"github.com/aws/shim-loggers-for-containerd/logger/fluentd"
-	"github.com/aws/shim-loggers-for-containerd/logger/splunk"
 
-	"github.com/coreos/go-systemd/journal"
 	"github.com/docker/go-units"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
@@ -59,13 +53,6 @@ func getGlobalArgs() (*logger.GlobalArgs, error) {
 	cleanupTime, err := getCleanupTime()
 	if err != nil {
 		return nil, err
-	}
-
-	if debug.Verbose {
-		debug.SendEventsToJournal(logger.DaemonName,
-			fmt.Sprintf("Container ID: %s, Container Name: %s, log driver: %s, mode: %s, max buffer size: %d",
-				containerID, containerName, logDriver, mode, maxBufferSize),
-			journal.PriDebug, 0)
 	}
 
 	args := &logger.GlobalArgs{
@@ -148,56 +135,6 @@ func getAWSLogsArgs() (*awslogs.Args, error) {
 		CreateGroup:         viper.GetString(awslogs.CreateGroupKey),
 		MultilinePattern:    viper.GetString(awslogs.MultilinePatternKey),
 		DatetimeFormat:      viper.GetString(awslogs.DatetimeFormatKey),
-	}, nil
-}
-
-// getFluentdArgs gets fluentd specified arguments for fluentd log driver
-func getFluentdArgs() *fluentd.Args {
-	address := viper.GetString(fluentd.AddressKey)
-	tag := viper.GetString(fluentd.FluentdTagKey)
-
-	ac := viper.GetBool(fluentd.AsyncConnectKey)
-	asyncConnect := strconv.FormatBool(ac)
-
-	precision := viper.GetBool(fluentd.SubsecondPrecisionKey)
-	subsecondPrecision := strconv.FormatBool(precision)
-
-	return &fluentd.Args{
-		Address:            address,
-		Tag:                tag,
-		AsyncConnect:       asyncConnect,
-		SubsecondPrecision: subsecondPrecision,
-	}
-}
-
-// getSplunkArgs gets Splunk specified arguments for Splunk log driver
-func getSplunkArgs() (*splunk.Args, error) {
-	token, err := getRequiredValue(splunk.TokenKey)
-	if err != nil {
-		return nil, err
-	}
-	url, err := getRequiredValue(splunk.URLKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return &splunk.Args{
-		Token:              token,
-		URL:                url,
-		Source:             viper.GetString(splunk.SourceKey),
-		Sourcetype:         viper.GetString(splunk.SourcetypeKey),
-		Index:              viper.GetString(splunk.IndexKey),
-		Capath:             viper.GetString(splunk.CapathKey),
-		Caname:             viper.GetString(splunk.CanameKey),
-		Insecureskipverify: viper.GetString(splunk.InsecureskipverifyKey),
-		Format:             viper.GetString(splunk.FormatKey),
-		VerifyConnection:   viper.GetString(splunk.VerifyConnectionKey),
-		Gzip:               viper.GetString(splunk.GzipKey),
-		GzipLevel:          viper.GetString(splunk.GzipLevelKey),
-		Tag:                viper.GetString(splunk.SplunkTagKey),
-		Labels:             viper.GetString(splunk.LabelsKey),
-		Env:                viper.GetString(splunk.EnvKey),
-		EnvRegex:           viper.GetString(splunk.EnvRegexKey),
 	}, nil
 }
 

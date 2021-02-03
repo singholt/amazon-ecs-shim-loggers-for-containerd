@@ -16,13 +16,10 @@ package awslogs
 import (
 	"context"
 
-	"github.com/aws/shim-loggers-for-containerd/debug"
 	"github.com/aws/shim-loggers-for-containerd/logger"
 
 	"github.com/containerd/containerd/runtime/v2/logging"
-	"github.com/coreos/go-systemd/journal"
 	dockerawslogs "github.com/docker/docker/daemon/logger/awslogs"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -73,7 +70,6 @@ func InitLogger(globalArgs *logger.GlobalArgs, awslogsArgs *Args) *LoggerArgs {
 
 // RunLogDriver initiates an awslogs driver and starts driving container logs to cloudwatch
 func (la *LoggerArgs) RunLogDriver(ctx context.Context, config *logging.Config, ready func() error) error {
-	defer debug.DeferFuncForRunLogDriver()
 
 	loggerConfig := getAWSLogsConfig(la.args)
 	info := logger.NewInfo(
@@ -83,8 +79,7 @@ func (la *LoggerArgs) RunLogDriver(ctx context.Context, config *logging.Config, 
 	)
 	stream, err := dockerawslogs.New(*info)
 	if err != nil {
-		debug.LoggerErr = errors.Wrap(err, "unable to create stream")
-		return debug.LoggerErr
+		return err
 	}
 
 	l, err := logger.NewLogger(
@@ -95,20 +90,16 @@ func (la *LoggerArgs) RunLogDriver(ctx context.Context, config *logging.Config, 
 		logger.WithBufferSizeInBytes(maximumBytesPerEvent),
 	)
 	if err != nil {
-		debug.LoggerErr = errors.Wrap(err, "unable to create awslogs driver")
-		return debug.LoggerErr
+		return err
 	}
 
 	if la.globalArgs.Mode == logger.NonBlockingMode {
-		debug.SendEventsToJournal(logger.DaemonName, "Starting non-blocking mode driver", journal.PriInfo, 0)
 		l = logger.NewBufferedLogger(l, la.globalArgs.MaxBufferSize, la.globalArgs.ContainerID)
 	}
 
 	// Start awslogs driver
-	debug.SendEventsToJournal(logger.DaemonName, "Starting awslogs driver", journal.PriInfo, 0)
 	err = l.Start(ctx, la.globalArgs.UID, la.globalArgs.GID, la.globalArgs.CleanupTime, ready)
 	if err != nil {
-		debug.LoggerErr = errors.Wrap(err, "failed to run awslogs driver")
 		// Do not return error if log driver has issue sending logs to destination, because if error
 		// returned here, containerd will identify this error and kill shim process, which will kill
 		// the container process accordingly.
@@ -116,7 +107,6 @@ func (la *LoggerArgs) RunLogDriver(ctx context.Context, config *logging.Config, 
 		// Reference: https://github.com/containerd/containerd/blob/release/1.3/runtime/v2/logging/logging.go
 		return nil
 	}
-	debug.SendEventsToJournal(logger.DaemonName, "Logging finished", journal.PriInfo, 1)
 
 	return nil
 }
